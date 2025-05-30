@@ -1,23 +1,37 @@
 // callPowerBiApi.js
 // Configuration for your Power BI embedding
 const powerBiConfig = {
-  // These should ideally come from environment variables
   apiUrl: 'https://api.powerbi.com/v1.0/myorg',
-  groupId: 'f089354e-8366-4e18-aea3-4cb4a3a50b48', // Your workspace ID
-  clientId: 'f8d562e9-5184-48a4-b9b6-4acf92e8e597', // Your Azure AD app ID
-  authority: 'https://login.microsoftonline.com/d79e6d4d-95f7-471f-9a73-1c2e4e586fe2' // Your tenant ID
+  groupId: '42B9B0F0-19AB-4682-A22E-6B24179B83C9', // Your workspace ID
 };
 
+// Get report embed URL (GET only)
+const accessToken = sessionStorage.getItem('powerbi_access_token');
 
-// Get report embed URL and token
-export const getReportEmbedConfig = async (reportId) => {
+
+export const getReportEmbedConfig = async () => {
   try {
-    // First get the access token
+    // Get the access token from session storage
     const accessToken = sessionStorage.getItem('powerbi_access_token');
-    console.log(accessToken)
-    // Get report details to obtain the embedUrl
+    console.log('Access Token:', accessToken);
+    
+    if (!accessToken) {
+      throw new Error('No access token found in session storage');
+    }
+
+    // Make GET request to fetch reports
+    // const reportResponse = await fetch(
+    //   `https://api.powerbi.com/v1.0/myorg/groups/f089354e-8366-4e18-aea3-4cb4a3a50b48/reports`, // Fixed URL (removed extra })
+    //   {
+    //     method: 'GET',
+    //     headers: {
+    //       'Authorization': `Bearer ${accessToken}`,
+    //       'Content-Type': 'application/json'
+    //     }
+    //   }
+    // );
     const reportResponse = await fetch(
-      `${powerBiConfig.apiUrl}/groups/${powerBiConfig.groupId}/reports/${reportId}`,
+      `${powerBiConfig.apiUrl}/groups/${powerBiConfig.groupId}/reports`, // Fixed URL (removed extra })
       {
         method: 'GET',
         headers: {
@@ -26,76 +40,71 @@ export const getReportEmbedConfig = async (reportId) => {
         }
       }
     );
+    console.log('Report Response:', reportResponse);
 
+    // Check if response is successful
     if (!reportResponse.ok) {
-      throw new Error(`Failed to get report details: ${reportResponse.status}`);
+      throw new Error(`Failed to get report details: ${reportResponse.status} ${reportResponse.statusText}`);
     }
 
     const reportData = await reportResponse.json();
-    
-    // Generate embed token
-    // const tokenResponse = await fetch(
-    //   `${powerBiConfig.apiUrl}/groups/${powerBiConfig.groupId}/reports/${reportId}/GenerateToken`,
-    //   {
-    //     method: 'POST',
-    //     headers: {
-    //       'Authorization': `Bearer ${accessToken}`,
-    //       'Content-Type': 'application/json'
-    //     },
-    //     body: JSON.stringify({
-    //       accessLevel: 'View',
-    //       allowSaveAs: false
-    //     })
-    //   }
-    // );
+    console.log('API Response:', reportData);
 
-    // if (!tokenResponse.ok) {
-    //   throw new Error(`Failed to generate embed token: ${tokenResponse.status}`);
-    // }
-
-    // const tokenData = await tokenResponse.json();
+    // Get the first report (assuming you want the first one)
+    const firstReport = reportData.value[0];
     
-    return {
-      reportId: reportData.value.id,
-      reportName: reportData.value.name,
-      embedUrl: reportData.value.embedUrl,
-      // accessToken: tokenData.value.token,
-      // expiration: tokenData.value.expiration, // You can use this for token refresh
-      datasetId: reportData.value.datasetId // Useful for report interactions
+    // Prepare the result object
+    const result = {
+      reportId: firstReport.id,
+      reportName: firstReport.name,
+      embedUrl: firstReport.embedUrl,
+      datasetId: firstReport.datasetId
     };
+    
+    console.log('Report embed config:', result);
+    return result;
+    
   } catch (error) {
-    console.error('Error getting report embed config:', error);
-    throw error;
+    console.error('Error in getReportEmbedConfig:', error);
+    throw error; // Re-throw the error for the caller to handle
   }
 };
 
 
 export const generateEmbedToken = async () => {
   try {
-    const accessToken = sessionStorage.getItem('powerbi_access_token')
+    const accessToken = sessionStorage.getItem('powerbi_access_token');
+    if (!accessToken) throw new Error('No access token found');
+
+    // First, get the report details (await the Promise!)
+    const reportConfig = await getReportEmbedConfig();
 
     const payload = {
       datasets: [
         {
-          id: getReportEmbedConfig.datasetId
+          id: reportConfig.datasetId  // Now correctly referencing the datasetId
         }
       ],
       reports: [
         {
-          allowEdit: true,
-          id: getReportEmbedConfig.reportId
+          id: reportConfig.reportId,  // Now correctly referencing the reportId
+          allowEdit: false  // Typically false for view-only embedding
         }
       ]
     };
 
-    const response = await fetch(`${powerBiConfig.apiUrl}/GenerateToken`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    // Include groupId in the URL (best practice)
+    const response = await fetch(
+      `${powerBiConfig.apiUrl}/GenerateToken`, 
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Token generation failed: ${response.status}`);
@@ -113,7 +122,7 @@ export const generateEmbedToken = async () => {
     console.error('Error generating embed token:', error);
     throw error;
   }
-  };
+};
 
 
 // Refresh embed token (similar to getReportEmbedConfig but only gets token)
