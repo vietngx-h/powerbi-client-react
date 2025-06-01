@@ -1,4 +1,153 @@
-import { useState, useEffect, use } from 'react';
+// import { useState, useEffect, use } from 'react';
+// import { PowerBIEmbed } from 'powerbi-client-react';
+// import * as models from 'powerbi-models';
+// import './App.css';
+// import { getReportEmbedConfig, generateEmbedToken } from './callPowerBiApi.js';
+// import * as msal from '@azure/msal-browser';
+
+// const msalConfig = {
+//   auth: {
+//     clientId: 'f8d562e9-5184-48a4-b9b6-4acf92e8e597',
+//     authority: 'https://login.microsoftonline.com/d79e6d4d-95f7-471f-9a73-1c2e4e586fe2',
+//     redirectUri: window.location.origin
+//   }
+// };
+
+// const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+// function App() {
+//   const [embedConfig, setEmbedConfig] = useState(null);
+//   const [embedToken, setEmbedToken] = useState(null);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState(null);
+//   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+//   useEffect(() => {
+//     // Check if user is already signed in when component mounts
+//     const account = msalInstance.getAllAccounts()[0];
+//     if (account) {
+//       setIsAuthenticated(true);
+//     }
+//   }, []);
+
+//   const handleLogin = async () => {
+//     try {
+//       setLoading(true);
+//       setError(null);
+      
+//       // 1. Authenticate with MSAL
+//       await msalInstance.initialize();
+//       const loginResponse = await msalInstance.loginPopup({
+//         scopes: ['https://analysis.windows.net/powerbi/api/Report.Read.All']
+//       });
+      
+//       // 2. Get access token
+//       const tokenResponse = await msalInstance.acquireTokenSilent({
+//         account: loginResponse.account,
+//         scopes: ['https://analysis.windows.net/powerbi/api/Report.Read.All']
+//       });
+      
+//       sessionStorage.setItem('powerbi_access_token', tokenResponse.accessToken);
+//       setIsAuthenticated(true);
+      
+//       // 3. Get report configuration
+//       const config = await getReportEmbedConfig();
+//       setEmbedConfig(config);
+      
+//       // 4. Generate embed token
+//       const token = await generateEmbedToken();
+//       setEmbedToken(token);
+      
+//     } catch (error) {
+//       console.error("Authentication error:", error);
+//       setError(error.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   console.log('Embed Config:', embedConfig);
+//   console.log('Embed Token:', embedToken);
+//   useEffect(() => {
+//     if (isAuthenticated) {
+//       generateEmbedToken().then(token => {
+//         console.log('Generated Embed Token:', token);
+//         setEmbedToken(token);
+//       }
+//       ).catch(err => {
+//         console.error("Error generating embed token:", err);
+//         setError("Failed to generate embed token.");
+//       });
+//       getReportEmbedConfig().then(token => {
+//         console.log('Generated Embed config:', token);
+//         setEmbedConfig(token);
+//       }
+//       ).catch(err => {
+//         console.error("Error generating embed token:", err);
+//         setError("Failed to generate embed token.");
+//       });
+//     }
+//   }
+//   , [isAuthenticated]);
+  
+
+//   return (
+//     <div className="App">
+//       <header className="App-header">
+//         {!isAuthenticated ? (
+//           <button 
+//             onClick={handleLogin} 
+//             disabled={loading}
+//             className="sign-in-button"
+//           >
+//             {loading ? 'Signing in...' : 'Sign in to view report'}
+//           </button>
+//         ) : (
+//           <>
+//             {embedConfig && embedToken ? (
+//               <PowerBIEmbed
+//                 embedConfig={{
+//                   type: 'report',
+//                   id: embedConfig.reportId,
+//                   embedUrl: embedConfig.embedUrl,
+//                   accessToken: embedToken.token,
+//                   tokenType: models.TokenType.Embed,
+//                   settings: {
+//                     panes: {
+//                       filters: {
+//                         expanded: false,
+//                         visible: true
+//                       }
+//                     },
+//                     background: models.BackgroundType.Transparent,
+//                   }
+//                 }}
+//                 eventHandlers={
+//                   new Map([
+//                     ['loaded', () => console.log('Report loaded')],
+//                     ['rendered', () => console.log('Report rendered')],
+//                     ['error', (event) => console.log(event.detail)],
+//                   ])
+//                 }
+//                 cssClassName={"report-class"}
+//               />
+//             ) : (
+//               <p>Loading report...</p>
+//             )}
+//           </>
+//         )}
+        
+//         {error && <div className="error-message">{error}</div>}
+//       </header>
+//     </div>
+//   );
+// }
+
+// export default App;
+
+
+
+import React, { useState, useEffect, useRef } from 'react';
 import { PowerBIEmbed } from 'powerbi-client-react';
 import * as models from 'powerbi-models';
 import './App.css';
@@ -21,9 +170,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const reportRef = useRef(null); // ⬅️ store the embedded report object
 
   useEffect(() => {
-    // Check if user is already signed in when component mounts
     const account = msalInstance.getAllAccounts()[0];
     if (account) {
       setIsAuthenticated(true);
@@ -34,30 +183,22 @@ function App() {
     try {
       setLoading(true);
       setError(null);
-      
-      // 1. Authenticate with MSAL
       await msalInstance.initialize();
       const loginResponse = await msalInstance.loginPopup({
         scopes: ['https://analysis.windows.net/powerbi/api/Report.Read.All']
       });
-      
-      // 2. Get access token
+
       const tokenResponse = await msalInstance.acquireTokenSilent({
         account: loginResponse.account,
         scopes: ['https://analysis.windows.net/powerbi/api/Report.Read.All']
       });
-      
+
       sessionStorage.setItem('powerbi_access_token', tokenResponse.accessToken);
       setIsAuthenticated(true);
-      
-      // 3. Get report configuration
       const config = await getReportEmbedConfig();
       setEmbedConfig(config);
-      
-      // 4. Generate embed token
       const token = await generateEmbedToken();
       setEmbedToken(token);
-      
     } catch (error) {
       console.error("Authentication error:", error);
       setError(error.message);
@@ -66,77 +207,77 @@ function App() {
     }
   };
 
-  console.log('Embed Config:', embedConfig);
-  console.log('Embed Token:', embedToken);
   useEffect(() => {
     if (isAuthenticated) {
-      generateEmbedToken().then(token => {
-        console.log('Generated Embed Token:', token);
-        setEmbedToken(token);
-      }
-      ).catch(err => {
-        console.error("Error generating embed token:", err);
-        setError("Failed to generate embed token.");
-      });
-      getReportEmbedConfig().then(token => {
-        console.log('Generated Embed config:', token);
-        setEmbedConfig(token);
-      }
-      ).catch(err => {
-        console.error("Error generating embed token:", err);
-        setError("Failed to generate embed token.");
-      });
+      generateEmbedToken()
+        .then(setEmbedToken)
+        .catch(err => {
+          console.error("Error generating embed token:", err);
+          setError("Failed to generate embed token.");
+        });
+
+      getReportEmbedConfig()
+        .then(setEmbedConfig)
+        .catch(err => {
+          console.error("Error getting embed config:", err);
+          setError("Failed to get embed config.");
+        });
     }
-  }
-  , [isAuthenticated]);
-  
+  }, [isAuthenticated]);
+
+  const handleFullScreen = () => {
+    if (reportRef.current) {
+      reportRef.current.fullscreen();
+    }
+  };
 
   return (
     <div className="App">
       <header className="App-header">
         {!isAuthenticated ? (
-          <button 
-            onClick={handleLogin} 
-            disabled={loading}
-            className="sign-in-button"
-          >
+          <button onClick={handleLogin} disabled={loading} className="sign-in-button">
             {loading ? 'Signing in...' : 'Sign in to view report'}
           </button>
         ) : (
           <>
             {embedConfig && embedToken ? (
-              <PowerBIEmbed
-                embedConfig={{
-                  type: 'report',
-                  id: embedConfig.reportId,
-                  embedUrl: embedConfig.embedUrl,
-                  accessToken: embedToken.token,
-                  tokenType: models.TokenType.Embed,
-                  settings: {
-                    panes: {
-                      filters: {
-                        expanded: false,
-                        visible: true
-                      }
-                    },
-                    background: models.BackgroundType.Transparent,
-                  }
-                }}
-                eventHandlers={
-                  new Map([
+              <>
+                <PowerBIEmbed
+                  embedConfig={{
+                    type: 'report',
+                    id: embedConfig.reportId,
+                    embedUrl: embedConfig.embedUrl,
+                    accessToken: embedToken.token,
+                    tokenType: models.TokenType.Embed,
+                    settings: {
+                      panes: {
+                        filters: {
+                          expanded: false,
+                          visible: true
+                        }
+                      },
+                      background: models.BackgroundType.Transparent,
+                    }
+                  }}
+                  eventHandlers={new Map([
                     ['loaded', () => console.log('Report loaded')],
                     ['rendered', () => console.log('Report rendered')],
                     ['error', (event) => console.log(event.detail)],
-                  ])
-                }
-                cssClassName={"report-class"}
-              />
+                  ])}
+                  cssClassName={"report-class"}
+                  getEmbeddedComponent={(embedObject) => {
+                    reportRef.current = embedObject; // ⬅️ store the report instance
+                  }}
+                />
+                <button className="fullscreen-button" onClick={handleFullScreen}>
+                  View Fullscreen
+                </button>
+              </>
             ) : (
               <p>Loading report...</p>
             )}
           </>
         )}
-        
         {error && <div className="error-message">{error}</div>}
       </header>
     </div>
